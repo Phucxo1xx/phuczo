@@ -1,0 +1,150 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("USER") // USER | OWNER | ADMIN
+  avatar    String?
+  phone     String?
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurants       Restaurant[]
+  reviews           Review[]
+  reportsSent       Report[]         @relation("ReporterRelation")
+  
+  // Friendships
+  friendshipsSent   Friendship[]     @relation("FriendshipRequester")
+  friendshipsRecv   Friendship[]     @relation("FriendshipReceiver")
+  
+  // Eat Invitations
+  invitationsSent   EatInvitation[]  @relation("InvitationSender")
+  invitationsRecv   EatInvitation[]  @relation("InvitationReceiver")
+  
+  notifications     Notification[]
+}
+
+model Restaurant {
+  id           String   @id @default(cuid())
+  name         String
+  description  String
+  address      String
+  city         String   @default("Hà Nội")
+  district     String?
+  phone        String?
+  openingHours String?  @default("08:00 - 22:00")
+  priceRange   String?  @default("$$") // $, $$, $$$
+  coverImage   String
+  images       String   @default("[]") // JSON string array
+  status       String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  rejectReason String?
+  ownerId      String
+  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  dishes       Dish[]
+  reviews      Review[]
+  reports      Report[]
+  invitations  EatInvitation[]
+}
+
+model Dish {
+  id           String   @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  price        Int      // VND
+  image        String?
+  category     String   @default("Món chính") // Cơm, Bún/Phở, Lẩu & Nướng, Đồ ăn vặt, Đồ uống/Trà sữa, Khác
+  isAvailable  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  invitations  EatInvitation[]
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating       Int        @default(5) // 1 to 5
+  content      String
+  images       String     @default("[]") // JSON string array of real photos
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  reports      Report[]
+}
+
+model Report {
+  id             String      @id @default(cuid())
+  reporterId     String
+  reporter       User        @relation("ReporterRelation", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType     String      // REVIEW | RESTAURANT
+  reviewId       String?
+  review         Review?     @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  restaurantId   String?
+  restaurant     Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  reason         String      // SPAM | FAKE_REVIEW | OFFENSIVE | WRONG_INFO | OTHER
+  note           String?
+  status         String      @default("PENDING") // PENDING | RESOLVED | DISMISSED
+  resolutionNote String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+}
+
+model Friendship {
+  id          String   @id @default(cuid())
+  requesterId String
+  requester   User     @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User     @relation("FriendshipReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  status      String   @default("PENDING") // PENDING | ACCEPTED | DECLINED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([requesterId, receiverId])
+}
+
+model EatInvitation {
+  id           String     @id @default(cuid())
+  senderId     String
+  sender       User       @relation("InvitationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId   String
+  receiver     User       @relation("InvitationReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  dishId       String?
+  dish         Dish?      @relation(fields: [dishId], references: [id], onDelete: SetNull)
+  proposedTime DateTime
+  note         String?
+  status       String     @default("PENDING") // PENDING | ACCEPTED | DECLINED | CANCELLED
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("SYSTEM") // FRIEND_REQUEST | INVITATION | RESTAURANT_STATUS | REPORT_STATUS | SYSTEM
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
